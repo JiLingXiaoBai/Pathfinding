@@ -272,6 +272,11 @@ partial struct FlowFieldGridSystem : ISystem
 
         return neighbourGridNodeList;
     }
+
+    public static bool IsWall(FlowFieldGridNode gridNode)
+    {
+        return gridNode.cost == WALL_COST;
+    }
 }
 
 [BurstCompile]

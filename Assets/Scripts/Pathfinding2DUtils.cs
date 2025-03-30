@@ -6,6 +6,8 @@ public struct Pathfinding2DUtils
     public const int HEIGHT = 256;
     public const int NODES_COUNT = WIDTH * HEIGHT;
     public const float NODE_SIZE = 1f;
+    public const float NODE_SIZE_SQR = NODE_SIZE * NODE_SIZE;
+    public const float NODE_SIZE_DOUBLE = NODE_SIZE * 2f;
     public const float NODE_SIZE_HALF = NODE_SIZE * 0.5f;
     public const int PATHFINDING_WALLS = 6;
 
@@ -22,6 +24,11 @@ public struct Pathfinding2DUtils
     public static int2 GetGridPosition(float2 worldPos)
     {
         return new int2((int)math.floor(worldPos.x / NODE_SIZE), (int)math.floor(worldPos.y / NODE_SIZE));
+    }
+
+    public static int2 GetGridPosition(float3 worldPos)
+    {
+        return new int2((int)math.floor(worldPos.x / NODE_SIZE), (int)math.floor(worldPos.z / NODE_SIZE));
     }
 
     public static float3 GetWorldCenterPosition(int x, int y)
