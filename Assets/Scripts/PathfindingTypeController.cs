@@ -14,6 +14,10 @@ public class PathfindingTypeController : MonoBehaviour
             {
                 AddComponent(entity, new FlowFieldTag());
             }
+            else if (authoring.type == Pathfinding2DType.AStar)
+            {
+                AddComponent(entity, new AStarTag());
+            }
         }
     }
 }
