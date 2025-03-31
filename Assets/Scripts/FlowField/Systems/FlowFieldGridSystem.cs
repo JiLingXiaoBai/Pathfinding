@@ -9,7 +9,7 @@ using Unity.Physics;
 partial struct FlowFieldGridSystem : ISystem
 {
     private bool m_Initialized;
-    private const int FLOW_FIELD_MAP_COUNT = 64;
+    private const int FLOW_FIELD_MAP_COUNT = 8;
     public const int WALL_COST = ushort.MaxValue;
 
     private Entity m_GridSystemDataEntity;

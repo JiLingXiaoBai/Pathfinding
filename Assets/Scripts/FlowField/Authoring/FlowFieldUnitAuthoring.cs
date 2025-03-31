@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class FlowFieldUnitAuthoring : MonoBehaviour
 {
+    [SerializeField] private uint randomSeed;
+
     private class FlowFieldUnitMoverBaker : Baker<FlowFieldUnitAuthoring>
     {
         public override void Bake(FlowFieldUnitAuthoring authoring)
@@ -11,7 +13,7 @@ public class FlowFieldUnitAuthoring : MonoBehaviour
             var entity = GetEntity(TransformUsageFlags.Dynamic);
             AddComponent(entity, new FlowFieldUnitMover
             {
-                random = new Unity.Mathematics.Random(123),
+                random = new Unity.Mathematics.Random(authoring.randomSeed),
                 speed = 30,
             });
             AddComponent(entity, new FlowFieldFollower());
