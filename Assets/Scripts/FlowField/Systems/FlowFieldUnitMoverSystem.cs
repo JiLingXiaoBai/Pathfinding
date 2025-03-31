@@ -2,7 +2,6 @@ using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
-using UnityEngine;
 
 partial struct FlowFieldUnitMoverSystem : ISystem
 {
@@ -20,6 +19,7 @@ partial struct FlowFieldUnitMoverSystem : ISystem
         foreach ((RefRO<LocalTransform> localTransform, RefRW<FlowFieldFollower> flowFieldFollower,
                      RefRW<FlowFieldUnitMover> unitMover, Entity entity) in SystemAPI
                      .Query<RefRO<LocalTransform>, RefRW<FlowFieldFollower>, RefRW<FlowFieldUnitMover>>()
+                     .WithPresent<FlowFieldFollower>()
                      .WithEntityAccess())
         {
             int2 gridPosition = Pathfinding2DUtils.GetGridPosition(localTransform.ValueRO.Position);
@@ -50,6 +50,7 @@ partial struct FlowFieldUnitMoverSystem : ISystem
             if (math.distancesq(localTransform.ValueRO.Position, targetPos) <
                 Pathfinding2DUtils.NODE_SIZE_SQR)
             {
+                UnityEngine.Debug.Log("FlowFieldUnitMoverSystem: Unit reached target position");
                 gridMap.ValueRW.referenceCount--;
                 unitMover.ValueRW.targetPos = localTransform.ValueRO.Position;
                 SystemAPI.SetComponentEnabled<FlowFieldFollower>(entity, false);

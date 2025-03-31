@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine;
 
 public class FlowFieldUnitAuthoring : MonoBehaviour
@@ -11,12 +12,15 @@ public class FlowFieldUnitAuthoring : MonoBehaviour
             AddComponent(entity, new FlowFieldUnitMover
             {
                 random = new Unity.Mathematics.Random(123),
-                speed = 10,
+                speed = 30,
             });
             AddComponent(entity, new FlowFieldFollower());
-            SetComponentEnabled<FlowFieldFollower>(entity,false);
-            AddComponent(entity, new FlowFieldPathRequest());
-            SetComponentEnabled<FlowFieldPathRequest>(entity,false);
+            SetComponentEnabled<FlowFieldFollower>(entity, false);
+            AddComponent(entity, new FlowFieldPathRequest()
+            {
+                targetPosition = new float2(authoring.transform.position.x, authoring.transform.position.z),
+            });
+            SetComponentEnabled<FlowFieldPathRequest>(entity, false);
         }
     }
 }

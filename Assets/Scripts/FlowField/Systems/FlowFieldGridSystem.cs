@@ -40,7 +40,7 @@ partial struct FlowFieldGridSystem : ISystem
                      RefRW<FlowFieldFollower> follower,
                      EnabledRefRW<FlowFieldFollower> followerEnabled) in SystemAPI
                      .Query<RefRW<FlowFieldPathRequest>, EnabledRefRW<FlowFieldPathRequest>, RefRW<FlowFieldFollower>,
-                         EnabledRefRW<FlowFieldFollower>>())
+                         EnabledRefRW<FlowFieldFollower>>().WithPresent<FlowFieldFollower>())
         {
             requestEnabled.ValueRW = false;
             int2 targetGridPosition = Pathfinding2DUtils.GetGridPosition(request.ValueRO.targetPosition);
@@ -118,11 +118,14 @@ partial struct FlowFieldGridSystem : ISystem
                 gridNodeNativeArray[Pathfinding2DUtils.GetIndex(targetGridPosition)];
             gridNodeOpenQueue.Enqueue(targetGridNode);
 
-            int safety = 1024;
+            int safety = int.MaxValue;
             while (gridNodeOpenQueue.Count > 0)
             {
                 safety--;
-                if (safety < 0) break;
+                if (safety < 0)
+                {
+                    break;
+                }
 
                 var currentGridNode = gridNodeOpenQueue.Dequeue();
                 var neighbourGridNodeList = GetNeighbourGridNodeList(currentGridNode, gridNodeNativeArray);
