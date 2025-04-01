@@ -157,14 +157,17 @@ partial struct FlowFieldGridSystem : ISystem
     [BurstCompile]
     public void OnDestroy(ref SystemState state)
     {
-        var gridSystemData = SystemAPI.GetComponentRW<FlowFieldGridSystemData>(m_GridSystemDataEntity);
-        for (int i = 0; i < gridSystemData.ValueRO.gridMapList.Length; i++)
+        if (m_Initialized)
         {
-            var gridMap = SystemAPI.GetComponentRW<FlowFieldGridMap>(gridSystemData.ValueRO.gridMapList[i]);
-            gridMap.ValueRW.gridNodeArray.Dispose();
-        }
+            var gridSystemData = SystemAPI.GetComponentRW<FlowFieldGridSystemData>(m_GridSystemDataEntity);
+            for (int i = 0; i < gridSystemData.ValueRO.gridMapList.Length; i++)
+            {
+                var gridMap = SystemAPI.GetComponentRW<FlowFieldGridMap>(gridSystemData.ValueRO.gridMapList[i]);
+                gridMap.ValueRW.gridNodeArray.Dispose();
+            }
 
-        gridSystemData.ValueRW.gridMapList.Dispose();
+            gridSystemData.ValueRW.gridMapList.Dispose();
+        }
     }
 
     private void Initialize(ref SystemState state)
