@@ -21,6 +21,13 @@ public struct Pathfinding2DUtils
         return gridPos.x + gridPos.y * WIDTH;
     }
 
+    public static int2 GetGridPositionFromIndex(int index)
+    {
+        int y = index / WIDTH;
+        int x = index % WIDTH;
+        return new int2(x, y);
+    }
+
     public static int2 GetGridPosition(float2 worldPos)
     {
         return new int2((int)math.floor(worldPos.x / NODE_SIZE), (int)math.floor(worldPos.y / NODE_SIZE));

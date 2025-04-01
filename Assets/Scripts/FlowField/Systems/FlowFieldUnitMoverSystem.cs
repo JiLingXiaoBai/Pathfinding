@@ -63,25 +63,26 @@ partial struct FlowFieldUnitMoverSystem : ISystem
         };
         unitMoverJob.ScheduleParallel();
     }
-}
 
-
-[BurstCompile]
-public partial struct UnitMoverJob : IJobEntity
-{
-    public float deltaTime;
-
-    private void Execute(ref LocalTransform localTransform, ref FlowFieldUnitMover unitMover)
+    [BurstCompile]
+    public partial struct UnitMoverJob : IJobEntity
     {
-        float3 moveDirection = unitMover.targetPos - localTransform.Position;
+        public float deltaTime;
 
-        float reachedTargetDistanceSq = FlowFieldRandomWalkingSystem.REACHED_TARGET_POSITION_DISTANCE_SQ;
-        if (math.lengthsq(moveDirection) <= reachedTargetDistanceSq)
+        private void Execute(ref LocalTransform localTransform, ref FlowFieldUnitMover unitMover)
         {
-            return;
-        }
+            float3 moveDirection = unitMover.targetPos - localTransform.Position;
 
-        moveDirection = math.normalize(moveDirection);
-        localTransform.Position += moveDirection * unitMover.speed * deltaTime;
+            float reachedTargetDistanceSq = FlowFieldRandomWalkingSystem.REACHED_TARGET_POSITION_DISTANCE_SQ;
+            if (math.lengthsq(moveDirection) <= reachedTargetDistanceSq)
+            {
+                return;
+            }
+
+            moveDirection = math.normalize(moveDirection);
+            localTransform.Position += moveDirection * unitMover.speed * deltaTime;
+        }
     }
 }
+
+

@@ -280,44 +280,44 @@ partial struct FlowFieldGridSystem : ISystem
     {
         return gridNode.cost == WALL_COST;
     }
-}
 
-[BurstCompile]
-public partial struct InitializeGridJob : IJobEntity
-{
-    [ReadOnly] public int mapIndex;
-    [ReadOnly] public int2 targetGridPosition;
-    [ReadOnly] public CollisionWorld collisionWorld;
-    [ReadOnly] public CollisionFilter collisionFilterWall;
-
-    private void Execute(ref FlowFieldGridNode gridNode)
+    [BurstCompile]
+    public partial struct InitializeGridJob : IJobEntity
     {
-        if (gridNode.mapIndex != mapIndex)
-        {
-            return;
-        }
+        [ReadOnly] public int mapIndex;
+        [ReadOnly] public int2 targetGridPosition;
+        [ReadOnly] public CollisionWorld collisionWorld;
+        [ReadOnly] public CollisionFilter collisionFilterWall;
 
-        gridNode.dir = new float2(0, 1);
-        if (gridNode.x == targetGridPosition.x && gridNode.y == targetGridPosition.y)
+        private void Execute(ref FlowFieldGridNode gridNode)
         {
-            gridNode.cost = 0;
-            gridNode.bestCost = 0;
-        }
-        else
-        {
-            NativeList<DistanceHit> distanceHitList = new NativeList<DistanceHit>(Allocator.TempJob);
-            gridNode.cost = 1;
-            gridNode.bestCost = uint.MaxValue;
-
-            if (collisionWorld.OverlapSphere(
-                    Pathfinding2DUtils.GetWorldCenterPosition(gridNode.x, gridNode.y),
-                    Pathfinding2DUtils.NODE_SIZE_HALF,
-                    ref distanceHitList,
-                    collisionFilterWall))
+            if (gridNode.mapIndex != mapIndex)
             {
-                gridNode.cost = FlowFieldGridSystem.WALL_COST;
+                return;
             }
-            distanceHitList.Dispose();
+
+            gridNode.dir = new float2(0, 1);
+            if (gridNode.x == targetGridPosition.x && gridNode.y == targetGridPosition.y)
+            {
+                gridNode.cost = 0;
+                gridNode.bestCost = 0;
+            }
+            else
+            {
+                NativeList<DistanceHit> distanceHitList = new NativeList<DistanceHit>(Allocator.TempJob);
+                gridNode.cost = 1;
+                gridNode.bestCost = uint.MaxValue;
+
+                if (collisionWorld.OverlapSphere(
+                        Pathfinding2DUtils.GetWorldCenterPosition(gridNode.x, gridNode.y),
+                        Pathfinding2DUtils.NODE_SIZE_HALF,
+                        ref distanceHitList,
+                        collisionFilterWall))
+                {
+                    gridNode.cost = FlowFieldGridSystem.WALL_COST;
+                }
+                distanceHitList.Dispose();
+            }
         }
     }
 }
