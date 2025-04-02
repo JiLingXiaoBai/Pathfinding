@@ -6,5 +6,4 @@
     {
         public float2 targetPosition;
         public int index;
-        // public NativeList<int2> pathPos;
     }

@@ -10,8 +10,10 @@ using Unity.Transforms;
 partial struct AStarGridSystem : ISystem
 {
     private NativeList<int2> m_WallPositions;
-    
-    
+    private ComponentLookup<AStarPathRequest> m_RequestLookup;
+    private ComponentLookup<AStarFollower> m_FollowerLookup;
+
+
     public struct AStarGridNodeCost : IComparable<AStarGridNodeCost>, IEquatable<AStarGridNodeCost>
     {
         public int2 currentPos;
@@ -41,7 +43,12 @@ partial struct AStarGridSystem : ISystem
 
         public bool Equals(AStarGridNodeCost other)
         {
-            return this.currentPos.Equals(other.currentPos);
+            return currentPos.Equals(other.currentPos);
+        }
+
+        public override int GetHashCode()
+        {
+            return currentPos.GetHashCode();
         }
     }
 
@@ -51,12 +58,16 @@ partial struct AStarGridSystem : ISystem
         state.RequireForUpdate<PhysicsWorldSingleton>();
         state.RequireForUpdate<AStarTag>();
         m_WallPositions = new NativeList<int2>(Pathfinding2DUtils.NODES_COUNT, Allocator.Persistent);
+        m_RequestLookup = state.GetComponentLookup<AStarPathRequest>();
+        m_FollowerLookup = state.GetComponentLookup<AStarFollower>();
     }
 
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
         m_WallPositions.Clear();
+        m_RequestLookup.Update(ref state);
+        m_FollowerLookup.Update(ref state);
         PhysicsWorldSingleton physicsWorldSingleton = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
         CollisionWorld collisionWorld = physicsWorldSingleton.CollisionWorld;
         UpdateWallGridJob updateWallGridJob = new UpdateWallGridJob
@@ -75,6 +86,9 @@ partial struct AStarGridSystem : ISystem
 
         FindPathJob findPathJob = new FindPathJob
         {
+            wallPositions = m_WallPositions,
+            requestLookup = m_RequestLookup,
+            followerLookup = m_FollowerLookup
         };
         var findPathJobHandle = findPathJob.ScheduleParallel(state.Dependency);
         findPathJobHandle.Complete();
@@ -110,15 +124,110 @@ partial struct AStarGridSystem : ISystem
     }
 
     [BurstCompile]
+    [WithPresent(typeof(AStarFollower))]
     partial struct FindPathJob : IJobEntity
     {
-        private void Execute(in LocalTransform localTransform, in AStarPathRequest request, ref AStarFollower follower, EnabledRefRW<AStarFollower> followerEnabled)
+        [ReadOnly] public NativeList<int2> wallPositions;
+        [NativeDisableParallelForRestriction] public ComponentLookup<AStarPathRequest> requestLookup;
+        [NativeDisableParallelForRestriction] public ComponentLookup<AStarFollower> followerLookup;
+
+        private void Execute(in LocalTransform localTransform, DynamicBuffer<AStarPathNode> pathNodes, Entity entity)
         {
-            // follower.pathPos = new NativeList<int2>(Allocator.TempJob);
-            follower.targetPosition = request.targetPosition;
+            pathNodes.Clear();
+            var request = requestLookup[entity];
+            var follower = followerLookup[entity];
             follower.index = 0;
-            followerEnabled.ValueRW = false;
-            // follower.pathPos.Dispose();
+            follower.targetPosition = request.targetPosition;
+            int2 startPos = Pathfinding2DUtils.GetGridPosition(localTransform.Position);
+            int2 endPos = Pathfinding2DUtils.GetGridPosition(request.targetPosition);
+
+            NativeList<int2> result = new NativeList<int2>(Allocator.TempJob);
+            NativeBinaryHeap<AStarGridNodeCost> openList =
+                new NativeBinaryHeap<AStarGridNodeCost>(NativeBinaryHeapType.Minimum, Pathfinding2DUtils.NODES_COUNT,
+                    Allocator.TempJob);
+            NativeHashMap<int2, AStarGridNodeCost> closeList =
+                new NativeHashMap<int2, AStarGridNodeCost>(Pathfinding2DUtils.NODES_COUNT, Allocator.TempJob);
+
+            openList.Add(new AStarGridNodeCost(startPos, startPos));
+            AStarGridNodeCost currentNode = new AStarGridNodeCost(startPos, startPos);
+            while (openList.Count > 0)
+            {
+                currentNode = openList.RemoveFirst();
+                if (!closeList.TryAdd(currentNode.currentPos, currentNode))
+                    break;
+                if (currentNode.currentPos.Equals(endPos))
+                    break;
+
+                for (int x = -1; x <= 1; x++)
+                {
+                    for (int y = -1; y <= 1; y++)
+                    {
+                        int2 newPos = new int2(currentNode.currentPos.x + x, currentNode.currentPos.y + y);
+
+                        if (Pathfinding2DUtils.IsValidGridPosition(newPos))
+                        {
+                            if (wallPositions.Contains(newPos) || closeList.TryGetValue(newPos, out _))
+                                continue;
+
+                            AStarGridNodeCost newCost = new AStarGridNodeCost(newPos, currentNode.currentPos);
+                            int newGCost = currentNode.gCost + NodeDistance(currentNode.currentPos, newPos);
+                            newCost.gCost = newGCost;
+                            newCost.hCost = NodeDistance(newPos, endPos);
+
+                            int index = openList.IndexOf(newCost);
+                            if (index >= 0)
+                            {
+                                if (newGCost < openList[index].gCost)
+                                {
+                                    openList.RemoveAt(index);
+                                    openList.Add(newCost);
+                                }
+                            }
+                            else
+                            {
+                                openList.Add(newCost);
+                            }
+                        }
+                    }
+                }
+            }
+
+            while (!currentNode.currentPos.Equals(currentNode.originPos))
+            {
+                result.Add(currentNode.currentPos);
+                if (!closeList.TryGetValue(currentNode.originPos, out var next))
+                    break;
+                currentNode = next;
+            }
+
+            if (result.Length > 0)
+            {
+                for (int i = result.Length - 1; i >= 0; i--)
+                {
+                    pathNodes.Add(new AStarPathNode
+                    {
+                        position = result[i]
+                    });
+                }
+            }
+
+            followerLookup[entity] = follower;
+            requestLookup.SetComponentEnabled(entity, false);
+            followerLookup.SetComponentEnabled(entity, true);
+            result.Dispose();
+            openList.Dispose();
+            closeList.Dispose();
+        }
+
+        private int NodeDistance(int2 a, int2 b)
+        {
+            int2 temp = a - b;
+            int tempX = math.abs(temp.x);
+            int tempY = math.abs(temp.y);
+            if (tempX > tempY)
+                return tempY * 14 + (tempX - tempY) * 10;
+            else
+                return tempX * 14 + (tempY - tempX) * 10;
         }
     }
 }

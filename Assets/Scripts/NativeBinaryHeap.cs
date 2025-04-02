@@ -1,41 +1,45 @@
 using System;
 using Unity.Collections;
 
+public enum NativeBinaryHeapType
+{
+    Minimum,
+    Maximum,
+}
+
 public struct NativeBinaryHeap<T> : IDisposable where T : unmanaged, IComparable<T>, IEquatable<T>
 {
-    public enum HeapType
-    {
-        Minimum,
-        Maximum,
-    }
+    public NativeBinaryHeapType Type { get; }
 
-    public HeapType Type { get; }
-
-    private NativeArray<T> m_Items;
+    private NativeList<T> m_Items;
     private NativeHashMap<T, int> m_ItemIndices;
     public int Count { get; private set; }
-    public int Capacity { get; }
 
     public int IndexOf(T item) => GetHeapIndex(item);
 
     public T this[int i] => m_Items[i];
 
 
-    public NativeBinaryHeap(HeapType type, int maxHeapSize, Allocator allocator)
+    public NativeBinaryHeap(NativeBinaryHeapType type, int initialCapacity, Allocator allocator)
     {
         Type = type;
-        m_Items = new NativeArray<T>(maxHeapSize, allocator, NativeArrayOptions.UninitializedMemory);
-        m_ItemIndices = new NativeHashMap<T, int>(maxHeapSize, allocator);
+        m_Items = new NativeList<T>(allocator);
+        m_Items.Resize(initialCapacity, NativeArrayOptions.UninitializedMemory);
+        m_ItemIndices = new NativeHashMap<T, int>(initialCapacity, allocator);
         Count = 0;
-        Capacity = maxHeapSize;
     }
 
     public void Add(T item)
     {
-        if (Count >= Capacity)
-            throw new InvalidOperationException("Heap is full");
         if (m_ItemIndices.ContainsKey(item))
             throw new InvalidOperationException("Item already exists in heap");
+
+        if (Count >= m_Items.Length)
+        {
+            int newCapacity = m_Items.Length == 0 ? 4 : m_Items.Length * 2;
+            m_Items.Resize(newCapacity, NativeArrayOptions.UninitializedMemory);
+        }
+        
         UpdateHeapItem(item, Count);
         SortUp(item);
         Count++;
@@ -85,7 +89,7 @@ public struct NativeBinaryHeap<T> : IDisposable where T : unmanaged, IComparable
                 int swapIndex = childIndexLeft;
                 int childIndexRight = itemIndex * 2 + 2;
 
-                if (Type == HeapType.Minimum)
+                if (Type == NativeBinaryHeapType.Minimum)
                 {
                     if (childIndexRight < Count &&
                         m_Items[childIndexLeft].CompareTo(m_Items[childIndexRight]) > 0)
@@ -99,7 +103,7 @@ public struct NativeBinaryHeap<T> : IDisposable where T : unmanaged, IComparable
                         continue;
                     }
                 }
-                else if (Type == HeapType.Maximum)
+                else if (Type == NativeBinaryHeapType.Maximum)
                 {
                     if (childIndexRight < Count &&
                         m_Items[childIndexLeft].CompareTo(m_Items[childIndexRight]) < 0)
@@ -123,9 +127,9 @@ public struct NativeBinaryHeap<T> : IDisposable where T : unmanaged, IComparable
         while (index > 0)
         {
             int parentIndex = (index - 1) / 2;
-            if (Type == HeapType.Minimum && item.CompareTo(m_Items[parentIndex]) >= 0)
+            if (Type == NativeBinaryHeapType.Minimum && item.CompareTo(m_Items[parentIndex]) >= 0)
                 break;
-            if (Type == HeapType.Maximum && item.CompareTo(m_Items[parentIndex]) <= 0)
+            if (Type == NativeBinaryHeapType.Maximum && item.CompareTo(m_Items[parentIndex]) <= 0)
                 break;
             Swap(item, m_Items[parentIndex]);
             index = parentIndex;

@@ -10,6 +10,7 @@ public class AStarUnitAuthoring : MonoBehaviour
             var entity = GetEntity(TransformUsageFlags.Dynamic);
             AddComponent(entity, new AStarFollower());
             AddComponent(entity, new AStarPathRequest());
+            AddBuffer<AStarPathNode>(entity);
         }
     }
 }
