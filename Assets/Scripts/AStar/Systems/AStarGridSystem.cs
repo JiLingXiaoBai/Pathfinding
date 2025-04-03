@@ -12,6 +12,7 @@ partial struct AStarGridSystem : ISystem
     private NativeList<int2> m_WallPositions;
     private ComponentLookup<AStarPathRequest> m_RequestLookup;
     private ComponentLookup<AStarFollower> m_FollowerLookup;
+    private bool m_InitWallGrid;
 
 
     public struct AStarGridNodeCost : IComparable<AStarGridNodeCost>, IEquatable<AStarGridNodeCost>
@@ -38,7 +39,7 @@ partial struct AStarGridSystem : ISystem
             {
                 result = hCost.CompareTo(other.hCost);
             }
-            return -result;
+            return result;
         }
 
         public bool Equals(AStarGridNodeCost other)
@@ -65,24 +66,29 @@ partial struct AStarGridSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        m_WallPositions.Clear();
         m_RequestLookup.Update(ref state);
         m_FollowerLookup.Update(ref state);
-        PhysicsWorldSingleton physicsWorldSingleton = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
-        CollisionWorld collisionWorld = physicsWorldSingleton.CollisionWorld;
-        UpdateWallGridJob updateWallGridJob = new UpdateWallGridJob
+        if (!m_InitWallGrid)
         {
-            wallPositions = m_WallPositions.AsParallelWriter(),
-            collisionWorld = collisionWorld,
-            collisionFilterWall = new CollisionFilter
+            m_WallPositions.Clear();
+            PhysicsWorldSingleton physicsWorldSingleton = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
+            CollisionWorld collisionWorld = physicsWorldSingleton.CollisionWorld;
+            UpdateWallGridJob updateWallGridJob = new UpdateWallGridJob
             {
-                BelongsTo = ~0u,
-                CollidesWith = 1u << Pathfinding2DUtils.PATHFINDING_WALLS,
-                GroupIndex = 0
-            }
-        };
-        var updateWallGridJobHandle = updateWallGridJob.Schedule(Pathfinding2DUtils.NODES_COUNT, 64, state.Dependency);
-        updateWallGridJobHandle.Complete();
+                wallPositions = m_WallPositions.AsParallelWriter(),
+                collisionWorld = collisionWorld,
+                collisionFilterWall = new CollisionFilter
+                {
+                    BelongsTo = ~0u,
+                    CollidesWith = 1u << Pathfinding2DUtils.PATHFINDING_WALLS,
+                    GroupIndex = 0
+                }
+            };
+            var updateWallGridJobHandle =
+                updateWallGridJob.Schedule(Pathfinding2DUtils.NODES_COUNT, 64, state.Dependency);
+            updateWallGridJobHandle.Complete();
+            m_InitWallGrid = true;
+        }
 
         FindPathJob findPathJob = new FindPathJob
         {
@@ -133,11 +139,16 @@ partial struct AStarGridSystem : ISystem
 
         private void Execute(in LocalTransform localTransform, DynamicBuffer<AStarPathNode> pathNodes, Entity entity)
         {
+            if (requestLookup.IsComponentEnabled(entity) == false)
+            {
+                return;
+            }
             pathNodes.Clear();
             var request = requestLookup[entity];
             var follower = followerLookup[entity];
             follower.index = 0;
             follower.targetPosition = request.targetPosition;
+            followerLookup[entity] = follower;
             int2 startPos = Pathfinding2DUtils.GetGridPosition(localTransform.Position);
             int2 endPos = Pathfinding2DUtils.GetGridPosition(request.targetPosition);
 
@@ -150,18 +161,30 @@ partial struct AStarGridSystem : ISystem
 
             openList.Add(new AStarGridNodeCost(startPos, startPos));
             AStarGridNodeCost currentNode = new AStarGridNodeCost(startPos, startPos);
+            bool foundPath = false;
             while (openList.Count > 0)
             {
                 currentNode = openList.RemoveFirst();
-                if (!closeList.TryAdd(currentNode.currentPos, currentNode))
-                    break;
+                if (closeList.ContainsKey(currentNode.currentPos))
+                {
+                    continue;
+                }
+                closeList.Add(currentNode.currentPos, currentNode);
                 if (currentNode.currentPos.Equals(endPos))
+                {
+                    foundPath = true;
                     break;
+                }
 
                 for (int x = -1; x <= 1; x++)
                 {
                     for (int y = -1; y <= 1; y++)
                     {
+                        if (x == 0 && y == 0)
+                        {
+                            continue;
+                        }
+
                         int2 newPos = new int2(currentNode.currentPos.x + x, currentNode.currentPos.y + y);
 
                         if (Pathfinding2DUtils.IsValidGridPosition(newPos))
@@ -191,17 +214,17 @@ partial struct AStarGridSystem : ISystem
                     }
                 }
             }
-
-            while (!currentNode.currentPos.Equals(currentNode.originPos))
+            if (foundPath)
             {
-                result.Add(currentNode.currentPos);
-                if (!closeList.TryGetValue(currentNode.originPos, out var next))
-                    break;
-                currentNode = next;
-            }
+                while (!currentNode.currentPos.Equals(currentNode.originPos))
+                {
+                    result.Add(currentNode.currentPos);
+                    if (!closeList.TryGetValue(currentNode.originPos, out var next))
+                        break;
+                    currentNode = next;
+                }
 
-            if (result.Length > 0)
-            {
+
                 for (int i = result.Length - 1; i >= 0; i--)
                 {
                     pathNodes.Add(new AStarPathNode
@@ -211,7 +234,6 @@ partial struct AStarGridSystem : ISystem
                 }
             }
 
-            followerLookup[entity] = follower;
             requestLookup.SetComponentEnabled(entity, false);
             followerLookup.SetComponentEnabled(entity, true);
             result.Dispose();
