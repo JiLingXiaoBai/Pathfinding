@@ -14,7 +14,7 @@ public class FlowFieldUnitAuthoring : MonoBehaviour
             AddComponent(entity, new FlowFieldUnitMover
             {
                 random = new Unity.Mathematics.Random(authoring.randomSeed),
-                speed = 30,
+                speed = 5,
             });
             AddComponent(entity, new FlowFieldFollower());
             SetComponentEnabled<FlowFieldFollower>(entity, false);
