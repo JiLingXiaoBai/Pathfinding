@@ -1,9 +1,9 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
-public struct Agent : IComponentData
+public struct AgentData : IComponentData
 {
-    public int id;
+    public int index;
     public float2 position;
     public float2 prefVelocity;
     public float2 velocity;
