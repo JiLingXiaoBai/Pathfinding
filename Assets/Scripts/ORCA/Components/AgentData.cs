@@ -1,7 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
-public struct AgentData : IComponentData
+public struct AgentData : IComponentData, IKDTreeItem
 {
     public int index;
     public float2 position;
@@ -15,4 +15,5 @@ public struct AgentData : IComponentData
     public float timeHorizon;
     public float timeHorizonObst;
     public float2 targetPos;
+    public float2 Position2D => position;
 }

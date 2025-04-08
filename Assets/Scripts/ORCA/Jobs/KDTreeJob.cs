@@ -3,15 +3,39 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 
-[BurstCompile]
-public struct AgentKDTreeJob : IJob
+
+public struct KDTreeNode
 {
-    public NativeArray<AgentData> agentDataArray;
-    public NativeArray<AgentTreeNode> agentTreeNodeArray;
+    public int left;
+    public int right;
+
+    public int begin;
+    public int end;
+
+    public float maxX;
+    public float maxY;
+    public float minX;
+    public float minY;
+}
+
+public interface IKDTreeItem
+{
+    public float2 Position2D { get; }
+}
+
+[BurstCompile]
+public struct KDTreeJob<T> : IJob where T : struct, IKDTreeItem
+{
+    public NativeArray<T> agentDataArray;
+    public NativeArray<KDTreeNode> kdTreeNodeArray;
+    public int maxLeavesCount;
+    public bool recompute;
     private int m_CurrentNodeIndex;
 
     public void Execute()
     {
+        if (!recompute)
+            return;
         int count = agentDataArray.Length;
         if (count == 0)
             return;
@@ -22,29 +46,29 @@ public struct AgentKDTreeJob : IJob
     private void BuildTreeRecursive(int begin, int end)
     {
         int nodeIndex = m_CurrentNodeIndex++;
-        AgentTreeNode node = agentTreeNodeArray[nodeIndex];
+        KDTreeNode node = kdTreeNodeArray[nodeIndex];
 
         node.begin = begin;
         node.end = end;
         node.left = -1;
         node.right = -1;
 
-        float2 pos = agentDataArray[begin].position;
+        float2 pos = agentDataArray[begin].Position2D;
         node.minX = node.maxX = pos.x;
         node.minY = node.maxY = pos.y;
 
         for (int i = begin + 1; i < end; i++)
         {
-            pos = agentDataArray[i].position;
+            pos = agentDataArray[i].Position2D;
             node.minX = math.min(node.minX, pos.x);
             node.maxX = math.max(node.maxX, pos.x);
             node.minY = math.min(node.minY, pos.y);
             node.maxY = math.max(node.maxY, pos.y);
         }
 
-        agentTreeNodeArray[nodeIndex] = node;
+        kdTreeNodeArray[nodeIndex] = node;
 
-        if (end - begin > AgentTreeNode.MAX_LEAF_SIZE)
+        if (end - begin > maxLeavesCount)
         {
             bool isVertical = node.maxX - node.minX > node.maxY - node.minY;
             float splitValue = isVertical ? (node.minX + node.maxX) * 0.5f : (node.minY + node.maxY) * 0.5f;
@@ -54,14 +78,14 @@ public struct AgentKDTreeJob : IJob
             while (left < right)
             {
                 while (left < right && (isVertical
-                           ? agentDataArray[left].position.x < splitValue
-                           : agentDataArray[left].position.y < splitValue))
+                           ? agentDataArray[left].Position2D.x < splitValue
+                           : agentDataArray[left].Position2D.y < splitValue))
                 {
                     left++;
                 }
                 while (left < right && (isVertical
-                           ? agentDataArray[right - 1].position.x >= splitValue
-                           : agentDataArray[right - 1].position.y >= splitValue))
+                           ? agentDataArray[right - 1].Position2D.x >= splitValue
+                           : agentDataArray[right - 1].Position2D.y >= splitValue))
                 {
                     right--;
                 }
@@ -81,11 +105,11 @@ public struct AgentKDTreeJob : IJob
             BuildTreeRecursive(begin, left);
             int rightChildIndex = m_CurrentNodeIndex;
             BuildTreeRecursive(left, end);
-            
-            node = agentTreeNodeArray[nodeIndex];
+
+            node = kdTreeNodeArray[nodeIndex];
             node.left = leftChildIndex;
             node.right = rightChildIndex;
-            agentTreeNodeArray[nodeIndex] = node;
+            kdTreeNodeArray[nodeIndex] = node;
         }
     }
 }
